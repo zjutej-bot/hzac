@@ -42,6 +42,9 @@ export default function PlayerGame() {
   const [interestAmount, setInterestAmount] = useState(0)
   const [interestCapped, setInterestCapped] = useState(false)
 
+  const [showResultPopup, setShowResultPopup] = useState(false)
+  const [resultData, setResultData] = useState<any>(null)
+
   const roundDone = useRef(0)
 
   useEffect(() => {
@@ -53,6 +56,22 @@ export default function PlayerGame() {
     const timer = setInterval(() => fetchGameData(u.id), 4000)
     return () => clearInterval(timer)
   }, [])
+
+  const showLastSeasonResult = async (currentRound: number) => {
+    const { data: games } = await supabase.from('games').select('match_result, player_ids').eq('status', 'playing').limit(1)
+    const mr = games?.[0]?.match_result
+    if (!mr || Object.keys(mr).length === 0) return
+    const bonusM: any = { 1: 8, 2: 7, 3: 7, 4: 6, 5: 6, 6: 5 }
+    const { data: allPlayers } = await supabase.from('users').select('*').in('id', games[0].player_ids || [])
+    const ranks = mr as { [uid: string]: number }
+    const results = (allPlayers || []).map((p: any) => ({
+      username: p.username, rank: ranks[p.id] || 6,
+      bonusMoney: bonusM[ranks[p.id]] || 5,
+      bonusScore: getBonusScore(currentRound - 1, ranks[p.id] || 6),
+    })).sort((a, b) => a.rank - b.rank)
+    setResultData({ round: currentRound - 1, players: results })
+    setShowResultPopup(true)
+  }
 
   const doDraft = async (userId: string, round: number) => {
     await supabase.from('players_pool').update({ status: 'available', owner_id: null }).eq('owner_id', userId).eq('status', 'in_pool')
@@ -78,6 +97,9 @@ export default function PlayerGame() {
     const cr = g.current_round
     if ((u.last_active_round || 0) < cr && roundDone.current !== cr) {
       roundDone.current = cr
+      // S2+ 弹窗展示上赛季赛果
+      if (cr > 1) await showLastSeasonResult(cr)
+      // 随机抽5人
       await doDraft(userId, cr)
     }
 
@@ -149,7 +171,6 @@ export default function PlayerGame() {
     }
     await supabase.from('users').update({ if_final: true }).eq('id', u.id)
 
-    // 利息上限5元
     const rawInterest = Math.floor((myData?.money || 0) / 5)
     const interest = Math.min(rawInterest, 5)
     const capped = rawInterest > 5
@@ -186,6 +207,23 @@ export default function PlayerGame() {
             {interestCapped && <p className="text-xs text-orange-500 mb-2">利息已达上限（最高5元），超出部分不计算</p>}
             <p className="text-xs text-gray-400 mb-4">（每剩余5元获得1元利息，每赛季上限5元）</p>
             <button onClick={() => setShowInterestPopup(false)} className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">确定</button>
+          </div>
+        </div>
+      )}
+      {showResultPopup && resultData && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow-lg max-w-sm w-full mx-4 max-h-[80vh] overflow-y-auto">
+            <h3 className="text-lg font-semibold text-gray-900 mb-1 text-center">比赛结果</h3>
+            <p className="text-xs text-gray-400 text-center mb-4">S{resultData.round} 赛季</p>
+            <div className="space-y-2 mb-4">
+              {resultData.players.map((p: any, i: number) => (
+                <div key={i} className="flex items-center justify-between bg-gray-50 p-2 rounded">
+                  <div className="flex items-center gap-2"><span className="font-bold text-red-600 w-6">#{p.rank}</span><span className="text-sm text-gray-900">{p.username}</span></div>
+                  <span className="text-xs text-gray-500">{p.bonusMoney}元 {p.bonusScore}分</span>
+                </div>
+              ))}
+            </div>
+            <button onClick={() => setShowResultPopup(false)} className="w-full py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">确定</button>
           </div>
         </div>
       )}
