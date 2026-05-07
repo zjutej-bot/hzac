@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 
-export default function GMDashboard() {
+export default function PlayerDashboard() {
   const [userProfile, setUserProfile] = useState<any>(null)
   const router = useRouter()
 
@@ -14,27 +14,39 @@ export default function GMDashboard() {
   const [showDelete, setShowDelete] = useState(false)
 
   const [game, setGame] = useState<any>(null)
+  const [myData, setMyData] = useState<any>(null)
   const [gamePlayers, setGamePlayers] = useState<any[]>([])
-  const [showScoreboard, setShowScoreboard] = useState<any>(null)
+  const [message, setMessage] = useState('')
+
   const [historyGames, setHistoryGames] = useState<any[]>([])
+  const [showScoreboard, setShowScoreboard] = useState<any>(null)
 
   useEffect(() => {
     const userStr = localStorage.getItem('currentUser')
     if (!userStr) { router.push('/'); return }
     const user = JSON.parse(userStr)
-    if (user.role !== 'gm') { router.push('/players/dashboard'); return }
+    if (user.role === 'gm') { router.push('/gm/dashboard'); return }
     setUserProfile(user)
     fetchData()
   }, [])
 
   const fetchData = async () => {
+    const user = JSON.parse(localStorage.getItem('currentUser') || '{}')
+
     const { data: currentGames } = await supabase.from('games').select('*').in('status', ['waiting', 'playing']).limit(1)
-    const g = currentGames?.[0] || null
-    setGame(g)
-    if (g?.player_ids?.length > 0) {
-      const { data: players } = await supabase.from('users').select('*').in('id', g.player_ids)
+    const currentGame = currentGames?.[0] || null
+    setGame(currentGame)
+
+    const { data: u } = await supabase.from('users').select('*').eq('id', user.id).single()
+    setMyData(u)
+    localStorage.setItem('currentUser', JSON.stringify(u || user))
+
+    if (currentGame?.player_ids?.length > 0) {
+      const { data: players } = await supabase.from('users').select('*').in('id', currentGame.player_ids)
       setGamePlayers(players || [])
-    } else { setGamePlayers([]) }
+    } else {
+      setGamePlayers([])
+    }
 
     const { data: finished } = await supabase.from('games').select('*').eq('status', 'finished_normal').order('id', { ascending: false })
     setHistoryGames(finished || [])
@@ -55,32 +67,25 @@ export default function GMDashboard() {
     logout()
   }
 
-  const startGame = async () => {
-    if (!game || (game.participants || 0) < 1) return
-    for (const p of gamePlayers) await supabase.from('users').update({ money: 5 }).eq('id', p.id)
-    await supabase.from('games').update({ status: 'playing', current_round: 1, current_phase: 'draft' }).eq('id', game.id)
-    fetchData()
-  }
+  const joinGame = async () => {
+    const user = JSON.parse(localStorage.getItem('currentUser') || '{}')
+    if (!game || game.status !== 'waiting') return
+    if ((game.participants || 0) >= 6) { setMessage('游戏已满'); return }
+    if ((game.player_ids || []).includes(user.id)) { setMessage('你已在游戏中'); return }
 
-  const resetRoom = async () => {
-    if (!confirm('确定重置房间吗？所有玩家将退出。')) return
-    await supabase.from('players_pool').update({ owner_id: null, status: 'available' })
-    await supabase.from('users').update({ in_game: false, money: 0, score: 0 }).in('id', game?.player_ids || [])
-    await supabase.from('games').update({ participants: 0, player_ids: [], match_result: '{}', scoreboard: null }).eq('id', game.id).eq('status', 'waiting')
-    const { data: waiting } = await supabase.from('games').select('*').eq('status', 'waiting').limit(1)
-    if (!waiting || waiting.length === 0) {
-      const { data: maxNum } = await supabase.from('games').select('game_number').order('game_number', { ascending: false }).limit(1)
-      const nextNum = (maxNum?.[0]?.game_number || 0) + 1
-      await supabase.from('games').insert({ status: 'waiting', current_round: 1, current_phase: 'draft', participants: 0, player_ids: [], match_result: '{}', game_number: nextNum })
-    }
-    fetchData()
-  }
-
-  const kickPlayer = async (userId: string) => {
-    await supabase.from('players_pool').update({ owner_id: null, status: 'available' }).eq('owner_id', userId)
-    await supabase.from('users').update({ in_game: false, money: 0, score: 0 }).eq('id', userId)
-    const newIds = (game.player_ids || []).filter((id: string) => id !== userId)
+    const newIds = [...(game.player_ids || []), user.id]
     await supabase.from('games').update({ participants: newIds.length, player_ids: newIds }).eq('id', game.id)
+    await supabase.from('users').update({ in_game: true, money: 0, score: 0 }).eq('id', user.id)
+    fetchData()
+  }
+
+  const leaveGame = async () => {
+    const user = JSON.parse(localStorage.getItem('currentUser') || '{}')
+    if (!game || game.status !== 'waiting') return
+    await supabase.from('players_pool').update({ owner_id: null, status: 'available' }).eq('owner_id', user.id)
+    const newIds = (game.player_ids || []).filter((id: string) => id !== user.id)
+    await supabase.from('games').update({ participants: newIds.length, player_ids: newIds }).eq('id', game.id)
+    await supabase.from('users').update({ in_game: false, money: 0, score: 0 }).eq('id', user.id)
     fetchData()
   }
 
@@ -88,13 +93,14 @@ export default function GMDashboard() {
 
   const isWaiting = game?.status === 'waiting'
   const isPlaying = game?.status === 'playing'
-  const isFinished = game?.status === 'finished_normal' || game?.status === 'finished_manual'
+  const isInGame = myData?.in_game
+  const isFull = (game?.participants || 0) >= 6
 
   return (
     <div className="min-h-screen bg-white">
       <div className="border-b border-gray-200">
         <div className="max-w-2xl mx-auto px-8 py-4 flex justify-between items-center">
-          <h1 className="text-xl font-bold text-red-700">GM中心</h1>
+          <h1 className="text-xl font-bold text-red-700">华足自走棋</h1>
           <div className="flex items-center gap-2">
             <span className="text-gray-500 text-sm">{userProfile.username}</span>
             <button onClick={() => setShowResetPwd(true)} className="px-3 py-1.5 text-sm text-gray-500 hover:text-gray-700">重设密码</button>
@@ -106,40 +112,35 @@ export default function GMDashboard() {
 
       <div className="max-w-2xl mx-auto px-8 py-6 space-y-8">
         <div>
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">快捷入口</h2>
-          <div className="grid grid-cols-2 gap-4">
-            <button onClick={() => router.push('/gm/pool')} className="p-4 bg-white rounded-lg border border-gray-200 hover:border-red-300 text-left transition-all"><div className="text-base font-semibold text-gray-900">球员管理</div><div className="text-gray-500 text-sm">批量添加、删除球员</div></button>
-            <button onClick={() => router.push('/gm/accounts')} className="p-4 bg-white rounded-lg border border-gray-200 hover:border-red-300 text-left transition-all"><div className="text-base font-semibold text-gray-900">账号管理</div><div className="text-gray-500 text-sm">查看、管理所有账号</div></button>
-          </div>
-        </div>
-
-        <div>
           <h2 className="text-lg font-semibold text-gray-900 mb-4">当前游戏</h2>
           {game ? (
-            <div className={`p-4 rounded-lg border ${isWaiting ? 'bg-gray-50 border-gray-200' : isPlaying ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-200'}`}>
+            <div className={`p-4 rounded-lg border ${isWaiting ? 'bg-gray-50 border-gray-200' : isPlaying ? 'bg-red-50 border-red-200' : ''}`}>
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <span className="text-gray-900 font-semibold">游戏局{game.game_number}</span>
                   <span className={`text-sm font-medium ${isWaiting ? 'text-gray-500' : 'text-red-600'}`}>
-                    {isWaiting ? '等待中' : isPlaying ? `进行中 · S${game.current_round}` : '已结束'}
+                    {isWaiting ? '等待中' : `进行中 · S${game.current_round}`}
                   </span>
                   <span className="text-sm text-gray-400">{game.participants || 0}/6人</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  {isPlaying && <button onClick={() => router.push('/gm/game')} className="px-5 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium transition-colors">进入游戏</button>}
-                  {isWaiting && <button onClick={startGame} className="px-5 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-medium transition-colors text-sm">开始游戏</button>}
-                  {isFinished && <button onClick={() => setShowScoreboard(game.scoreboard)} className="px-5 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-medium transition-colors text-sm">查看排名</button>}
-                  {!isPlaying && <button onClick={resetRoom} className="px-5 py-2 border border-gray-300 text-gray-500 rounded-lg hover:bg-gray-100 text-sm transition-colors">重置房间</button>}
+                <div className="flex items-center gap-3">
+                  {isPlaying && isInGame && (
+                    <button onClick={() => router.push('/players/game')} className="px-5 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium transition-colors">进入游戏</button>
+                  )}
+                  {isWaiting && !isInGame && !isFull && (
+                    <button onClick={joinGame} className="px-5 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-medium transition-colors text-sm">加入</button>
+                  )}
+                  {isWaiting && isInGame && (
+                    <button onClick={leaveGame} className="px-5 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-medium transition-colors text-sm">退出</button>
+                  )}
                 </div>
               </div>
-
               {gamePlayers.length > 0 && (
                 <div className="pt-3 border-t border-gray-200">
                   <div className="flex flex-wrap gap-2">
                     {gamePlayers.map((p: any) => (
-                      <div key={p.id} className={`flex items-center gap-1 rounded px-2 py-1 text-sm ${isPlaying ? 'bg-red-100 text-red-700 font-medium' : 'bg-white border border-gray-200 text-gray-700'}`}>
+                      <div key={p.id} className={`px-2 py-1 rounded text-sm ${p.id === userProfile.id ? (isPlaying ? 'bg-red-200 text-red-700 font-medium' : 'bg-gray-200 text-gray-700 font-medium') : (isPlaying ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-white border border-gray-200 text-gray-600')}`}>
                         {p.username}
-                        {isWaiting && <button onClick={() => kickPlayer(p.id)} className="text-gray-400 hover:text-red-500 ml-1">✕</button>}
                       </div>
                     ))}
                   </div>
@@ -147,7 +148,7 @@ export default function GMDashboard() {
               )}
             </div>
           ) : (
-            <div className="p-4 rounded-lg border bg-gray-50 border-gray-200 text-center text-gray-400 text-sm">暂无游戏局，请重置房间</div>
+            <div className="p-4 rounded-lg border bg-gray-50 border-gray-200 text-center text-gray-400 text-sm">暂无进行中的游戏</div>
           )}
         </div>
 
@@ -171,8 +172,10 @@ export default function GMDashboard() {
         </div>
       </div>
 
+      {message && <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 px-4 py-2 bg-gray-800 text-white rounded-lg text-sm z-50">{message}<button onClick={() => setMessage('')} className="ml-2 underline">关闭</button></div>}
+
       {showScoreboard && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50"><div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full mx-4 max-h-[80vh] overflow-y-auto"><h3 className="text-lg font-semibold text-gray-900 mb-4 text-center">最终排名</h3><div className="space-y-2 mb-4">{(showScoreboard as any[]).map((p: any, i: number) => (<div key={i} className="flex items-center gap-3 bg-gray-50 p-2 rounded"><span className="text-xl font-bold w-10">{i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i + 1}`}</span><span className="flex-1 text-sm text-gray-900">{p.username}</span><span className="text-xs text-gray-500">💰{p.money} ⭐{p.score}</span></div>))}</div><button onClick={() => setShowScoreboard(null)} className="w-full py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">关闭</button></div></div>
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50"><div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full mx-4 max-h-[80vh] overflow-y-auto"><h3 className="text-lg font-semibold text-gray-900 mb-4 text-center">最终排名</h3><div className="space-y-2 mb-4">{(showScoreboard as any[]).map((p: any, i: number) => (<div key={i} className={`flex items-center gap-3 p-2 rounded ${p.id === userProfile.id ? 'bg-red-50 border border-red-200' : 'bg-gray-50'}`}><span className="text-xl font-bold w-10">{i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i + 1}`}</span><span className="flex-1 text-sm text-gray-900">{p.username}</span><span className="text-xs text-gray-500">💰{p.money} ⭐{p.score}</span></div>))}</div><button onClick={() => setShowScoreboard(null)} className="w-full py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">关闭</button></div></div>
       )}
 
       {showResetPwd && (<div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50"><div className="bg-white p-6 rounded-lg shadow-lg max-w-sm w-full mx-4"><h3 className="text-lg font-semibold text-gray-900 mb-4">重设密码</h3><input type="text" value={newPwd} onChange={(e) => setNewPwd(e.target.value)} className="w-full p-2.5 rounded border border-gray-300 text-gray-900 mb-3" placeholder="输入新密码" />{pwdMsg && <p className="text-sm text-green-600 mb-2">{pwdMsg}</p>}<div className="flex gap-2 justify-end"><button onClick={() => { setShowResetPwd(false); setNewPwd(''); setPwdMsg('') }} className="px-4 py-2 border border-gray-300 rounded text-gray-600">取消</button><button onClick={resetPassword} className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">确认</button></div></div></div>)}
