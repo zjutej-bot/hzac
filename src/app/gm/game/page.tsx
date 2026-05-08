@@ -133,12 +133,9 @@ export default function GMGame() {
             </div>
           </div>
           <div>
-            {game.current_phase === 'draft' && (
-              <button onClick={enterMatch} disabled={!done} className="w-full py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium mb-4">进入比赛阶段</button>
-            )}
-            {game.current_phase === 'match' && (
-              <button onClick={openRank} className="w-full py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium mb-4">提交比赛成绩</button>
-            )}
+            <button onClick={game.current_phase === 'draft' ? enterMatch : openRank} disabled={game.current_phase === 'draft' && !done} className="w-full py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium mb-4">
+              {game.current_phase === 'draft' ? '进入比赛阶段' : '提交比赛成绩'}
+            </button>
             <div className="bg-white border border-gray-200 rounded-lg p-4">
               <h2 className="text-lg font-semibold text-gray-900 mb-3">玩家 ({players.length}/6)</h2>
               <div className="space-y-2">{players.map(p=>(<div key={p.id} className="flex justify-between items-center bg-gray-50 p-2 rounded"><span className="text-sm text-gray-900">{p.username}</span><span className="text-xs text-gray-500">💰{p.money} ⭐{p.score}</span></div>))}</div>
