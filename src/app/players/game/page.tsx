@@ -169,7 +169,7 @@ export default function PlayerGame() {
   }
 
   const releasePlayer = async (id: string, cost: number) => {
-    const refund = Math.max(1, cost - 1)
+    const refund = Math.max(0, cost - 1)
     await supabase.from('players_pool').update({ status: 'available', owner_id: null }).eq('id', id)
     await supabase.from('users').update({ money: (myData.money || 0) + refund }).eq('id', userProfile.id)
     setFinalSelected(p => { const n = new Set(p); n.delete(id); return n })
@@ -279,7 +279,7 @@ export default function PlayerGame() {
                     ))}
                   </div>
                 ) : <p className="text-gray-400 text-sm py-2">暂无球员</p>}
-                {showReleaseConfirm && (() => { const r = myDraftedPlayers.find(x => x.id === showReleaseConfirm); return (<div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50"><div className="bg-white p-6 rounded-lg shadow-lg max-w-sm w-full mx-4"><h3 className="text-lg font-semibold text-gray-900 mb-2">确认遣散</h3><p className="text-gray-600 mb-1">确定遣散 <span className="text-red-600 font-medium">{r?.name}</span> 吗？</p><p className="text-gray-500 text-sm mb-4">将返还 {Math.max(1, (r?.cost||0)-1)} 元</p><div className="flex gap-2 justify-end"><button onClick={() => setShowReleaseConfirm(null)} className="px-4 py-2 border border-gray-300 rounded">取消</button><button onClick={() => releasePlayer(r.id, r.cost||0)} className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">确认</button></div></div></div>) })()}
+                {showReleaseConfirm && (() => { const r = myDraftedPlayers.find(x => x.id === showReleaseConfirm); return (<div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50"><div className="bg-white p-6 rounded-lg shadow-lg max-w-sm w-full mx-4"><h3 className="text-lg font-semibold text-gray-900 mb-2">确认遣散</h3><p className="text-gray-600 mb-1">确定遣散 <span className="text-red-600 font-medium">{r?.name}</span> 吗？</p><p className="text-gray-500 text-sm mb-4">将返还 {Math.max(0, (r?.cost||0)-1)} 元</p><div className="flex gap-2 justify-end"><button onClick={() => setShowReleaseConfirm(null)} className="px-4 py-2 border border-gray-300 rounded">取消</button><button onClick={() => releasePlayer(r.id, r.cost||0)} className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">确认</button></div></div></div>) })()}
                 <button onClick={confirmFinalRoster} className="mt-3 w-full py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium">选定大名单 ({finalSelected.size}人)</button>
               </div>
               <div className="bg-white border border-gray-200 rounded-lg p-4">
