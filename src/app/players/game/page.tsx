@@ -220,11 +220,12 @@ export default function PlayerGame() {
       {showResultPopup && resultData && (<div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50"><div className="bg-white p-6 rounded-lg shadow-lg max-w-sm w-full mx-4 max-h-[80vh] overflow-y-auto"><h3 className="text-lg font-semibold text-gray-900 mb-1 text-center">比赛结果</h3><p className="text-xs text-gray-400 text-center mb-4">S{resultData.round} 赛季</p><div className="space-y-2 mb-4">{resultData.players.map((p: any, i: number) => (<div key={i} className="flex items-center justify-between bg-gray-50 p-2 rounded"><div className="flex items-center gap-2"><span className="font-bold text-red-600 w-6">#{p.rank}</span><span className="text-sm text-gray-900">{p.username}</span></div><span className="text-xs text-gray-500">{p.bonusMoney}元 {p.bonusScore}分</span></div>))}</div><button onClick={() => setShowResultPopup(false)} className="w-full py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">确定</button></div></div>)}
       <div className="border-b border-gray-200 bg-red-50"><div className="max-w-4xl mx-auto px-8 py-4 flex justify-between items-center"><div><h1 className="text-lg font-bold text-red-700">游戏局</h1><p className="text-sm text-gray-500">第 {game.current_round}/7 赛季 · {phase}</p></div><div className="flex items-center gap-4"><div className="text-right"><p className="text-sm text-gray-500">{userProfile.username}</p><p className="text-lg font-bold text-red-600">💰{myData.money}元 ⭐{myData.score}分</p></div><button onClick={() => router.push('/players/dashboard')} className="px-3 py-1.5 border border-gray-300 text-gray-600 rounded hover:bg-gray-50 text-sm">退出</button></div></div></div>
       <div className="max-w-4xl mx-auto px-8 py-6 grid grid-cols-3 gap-6">
-        {/* 左侧：阵容 + 操作 */}
+        {/* 左侧：全玩家阵容 + 操作 */}
         <div className="col-span-2 space-y-4">
           {message && <div className="p-2 rounded text-sm bg-red-50 border border-red-200 text-red-700">{message}<button onClick={() => setMessage('')} className="ml-2 underline">关闭</button></div>}
           {showFinalConfirm && (<div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50"><div className="bg-white p-6 rounded-lg shadow-lg max-w-sm w-full mx-4"><h3 className="text-lg font-semibold text-gray-900 mb-2">确认大名单</h3><p className="text-gray-600 mb-1">确定提交大名单吗？（{finalSelected.size}人）</p><p className="text-gray-500 text-sm mb-4">确定后本季将无法再选秀</p><div className="flex gap-2 justify-end"><button onClick={() => setShowFinalConfirm(false)} className="px-4 py-2 border border-gray-300 rounded text-gray-600">取消</button><button onClick={executeFinalRoster} className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">确认</button></div></div></div>)}
 
+          {/* 比赛阶段奖励说明 */}
           {game.current_phase === 'match' && (
             <div className="bg-gray-50 rounded-lg p-4">
               <p className="text-sm font-medium text-gray-700 mb-2">S{game.current_round} 排名奖励明细</p>
@@ -234,34 +235,36 @@ export default function PlayerGame() {
             </div>
           )}
 
-          {/* GM端同款全玩家阵容 */}
-          <div className="space-y-3">
-            {allPlayers.map((p: any) => {
-              const pool = allPools[p.id] || []
-              const sorted = [...pool].sort((a: any, b: any) => {
-                if (a.status === 'final' && b.status !== 'final') return -1
-                if (a.status !== 'final' && b.status === 'final') return 1
-                return (a.sort_order || 0) - (b.sort_order || 0)
-              })
-              return (
-                <div key={p.id} className={`bg-white border rounded-lg p-3 ${p.id === userProfile.id ? 'border-red-300 bg-red-50' : 'border-gray-200'}`}>
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="text-sm font-medium text-gray-900">{p.username}</span>
-                    {p.if_final ? <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-medium">大名单 {pool.filter((r: any) => r.status === 'final').length}人</span> : <span className="text-xs text-gray-400">未确定</span>}
-                  </div>
-                  {pool.length === 0 ? <p className="text-xs text-gray-400">暂无球员</p> : (
-                    <div className="flex flex-wrap gap-1">
-                      {sorted.map((r: any) => (
-                        <span key={r.id} className={`text-xs px-2 py-1 rounded ${r.status === 'final' ? 'bg-red-100 text-red-700 font-medium' : 'bg-gray-100 border border-gray-200 text-gray-600'}`}>{r.name} ({r.cost}费)</span>
-                      ))}
+          {/* 全玩家阵容（替代"我的队伍"框） */}
+          {(isFinal || game.current_phase === 'match') && (
+            <div className="space-y-3">
+              {allPlayers.map((p: any) => {
+                const pool = allPools[p.id] || []
+                const sorted = [...pool].sort((a: any, b: any) => {
+                  if (a.status === 'final' && b.status !== 'final') return -1
+                  if (a.status !== 'final' && b.status === 'final') return 1
+                  return (a.sort_order || 0) - (b.sort_order || 0)
+                })
+                return (
+                  <div key={p.id} className={`bg-white border rounded-lg p-3 ${p.id === userProfile.id ? 'border-red-300 bg-red-50' : 'border-gray-200'}`}>
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-sm font-medium text-gray-900">{p.username}</span>
+                      {p.if_final ? <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-medium">大名单 {pool.filter((r: any) => r.status === 'final').length}人</span> : <span className="text-xs text-gray-400">未确定</span>}
                     </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
+                    {pool.length === 0 ? <p className="text-xs text-gray-400">暂无球员</p> : (
+                      <div className="flex flex-wrap gap-1">
+                        {sorted.map((r: any) => (
+                          <span key={r.id} className={`text-xs px-2 py-1 rounded ${r.status === 'final' ? 'bg-red-100 text-red-700 font-medium' : 'bg-gray-100 border border-gray-200 text-gray-600'}`}>{r.name} ({r.cost}费)</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
 
-          {/* 自己的选秀操作 */}
+          {/* 选秀阶段 + 未提交：队伍操作 + 选秀 */}
           {game.current_phase === 'draft' && !isFinal && (
             <div className="space-y-4">
               <div className="bg-white border border-gray-200 rounded-lg p-4">
@@ -300,7 +303,7 @@ export default function PlayerGame() {
           )}
         </div>
 
-        {/* 右侧：金币分数表 */}
+        {/* 右侧：金币分数表（持续显示） */}
         <div>
           <div className="bg-white border border-gray-200 rounded-lg p-4">
             <h2 className="text-lg font-semibold text-gray-900 mb-3">玩家 ({allPlayers.length}/6)</h2>
