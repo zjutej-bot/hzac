@@ -97,9 +97,7 @@ export default function PlayerGame() {
     const cr = g.current_round
     if ((u.last_active_round || 0) < cr && roundDone.current !== cr) {
       roundDone.current = cr
-      // S2+ 弹窗展示上赛季赛果
       if (cr > 1) await showLastSeasonResult(cr)
-      // 随机抽5人
       await doDraft(userId, cr)
     }
 
@@ -117,14 +115,26 @@ export default function PlayerGame() {
   const refreshPlayers = async () => {
     const u = JSON.parse(localStorage.getItem('currentUser') || '{}')
     const cr = game?.current_round || 1
+
     await supabase.from('players_pool').update({ status: 'available', owner_id: null }).eq('owner_id', u.id).eq('status', 'in_pool')
+
     const costs = SEASON_COST_RANGE[cr] || [0,1,2,3,4,5,6,7]
     const { data: pool } = await supabase.from('players_pool').select('*').eq('status', 'available').is('owner_id', null).in('cost', costs)
+
     if (pool && pool.length > 0) {
-      const pick = [...pool].sort(() => Math.random() - 0.5).slice(0, 5)
-      for (const p of pick) await supabase.from('players_pool').update({ status: 'in_pool', owner_id: u.id }).eq('id', p.id)
+      const shuffled = [...pool].sort(() => Math.random() - 0.5)
+      const selected = shuffled.slice(0, 5)
+      for (const p of selected) {
+        await supabase.from('players_pool').update({ status: 'in_pool', owner_id: u.id }).eq('id', p.id)
+      }
+      setAvailablePlayers(selected)
+    } else {
+      setAvailablePlayers([])
     }
-    fetchGameData(u.id)
+    setSelectedPlayers(new Set())
+
+    const { data: drafted } = await supabase.from('players_pool').select('*').eq('owner_id', u.id).in('status', ['drafted','final']).order('sort_order')
+    setMyDraftedPlayers(drafted || [])
   }
 
   const manualRefresh = async () => {
@@ -142,7 +152,10 @@ export default function PlayerGame() {
     const u = JSON.parse(localStorage.getItem('currentUser') || '{}')
     for (const pid of Array.from(selectedPlayers)) await supabase.from('players_pool').update({ status: 'drafted' }).eq('id', pid)
     await supabase.from('users').update({ money: (myData.money || 0) - totalCost }).eq('id', u.id)
-    fetchGameData(u.id)
+    setAvailablePlayers(prev => prev.filter(p => !Array.from(selectedPlayers).includes(p.id)))
+    setSelectedPlayers(new Set())
+    const { data: drafted } = await supabase.from('players_pool').select('*').eq('owner_id', u.id).in('status', ['drafted','final']).order('sort_order')
+    setMyDraftedPlayers(drafted || [])
   }
 
   const releasePlayer = async (id: string, cost: number) => {
@@ -151,7 +164,9 @@ export default function PlayerGame() {
     await supabase.from('users').update({ money: (myData.money || 0) + refund }).eq('id', userProfile.id)
     setFinalSelected(p => { const n = new Set(p); n.delete(id); return n })
     setShowReleaseConfirm(null)
-    fetchGameData(userProfile.id)
+    const u = JSON.parse(localStorage.getItem('currentUser') || '{}')
+    const { data: drafted } = await supabase.from('players_pool').select('*').eq('owner_id', u.id).in('status', ['drafted','final']).order('sort_order')
+    setMyDraftedPlayers(drafted || [])
   }
 
   const toggleFinal = (id: string) => setFinalSelected(p => { const n = new Set(p); if (n.has(id)) n.delete(id); else { if (n.size >= MAX_ROSTER_SIZE) { setMessage(`最多${MAX_ROSTER_SIZE}人`); return p } n.add(id) } return n })
@@ -179,7 +194,10 @@ export default function PlayerGame() {
     setInterestCapped(capped)
     setShowInterestPopup(true)
     setShowFinalConfirm(false)
-    fetchGameData(u.id)
+    setAvailablePlayers([])
+    setSelectedPlayers(new Set())
+    const { data: drafted } = await supabase.from('players_pool').select('*').eq('owner_id', u.id).in('status', ['drafted','final']).order('sort_order')
+    setMyDraftedPlayers(drafted || [])
   }
 
   if (!userProfile || !game || !myData) return <div className="min-h-screen bg-white flex items-center justify-center"><p className="text-gray-500">加载中...</p></div>
