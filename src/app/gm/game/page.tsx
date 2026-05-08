@@ -36,7 +36,7 @@ export default function GMGame() {
     const g = games?.[0] || null
     setGame(g)
     if (!g?.player_ids?.length) { setPlayers([]); setPools({}); return }
-    const { data: all } = await supabase.from('users').select('*').in('id', g.player_ids)
+    const { data: all } = await supabase.from('users').select('*').in('id', g.player_ids).order('id')
     setPlayers(all || [])
     const map: { [uid: string]: any[] } = {}
     for (const p of all || []) {
