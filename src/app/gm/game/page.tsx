@@ -49,6 +49,7 @@ export default function GMGame() {
   const allDone = () => players.length > 0 && players.every(p => p.if_final)
 
   const enterMatch = async () => {
+    if (!allDone()) return
     await supabase.from('games').update({ current_phase: 'match' }).eq('id', game.id)
     fetchGame()
   }
@@ -105,13 +106,13 @@ export default function GMGame() {
 
   const cr = game.current_round
   const phase = game.current_phase === 'draft' ? '选秀阶段' : '比赛阶段'
+  const done = allDone()
 
   return (
     <div className="min-h-screen bg-white">
       <div className="border-b border-gray-200 bg-red-50"><div className="max-w-4xl mx-auto px-8 py-4 flex justify-between items-center"><div><h1 className="text-lg font-bold text-red-700">游戏局{game.game_number} (GM)</h1><p className="text-sm text-gray-500">第 {cr}/7 赛季 · {phase}</p></div><div className="flex items-center gap-2"><button onClick={endGame} className="px-4 py-1.5 bg-red-600 text-white rounded hover:bg-red-700 text-sm">终止游戏</button><button onClick={() => router.push('/gm/dashboard')} className="px-4 py-1.5 border border-gray-300 text-gray-600 rounded hover:bg-gray-50 text-sm">退出</button></div></div></div>
       <div className="max-w-4xl mx-auto px-8 py-6">
         <div className="grid grid-cols-3 gap-6">
-          {/* 左侧列 */}
           <div className="col-span-2 space-y-4">
             <h2 className="text-lg font-semibold text-gray-900">{phase}</h2>
             {game.current_phase === 'match' && (
@@ -131,17 +132,14 @@ export default function GMGame() {
               })}
             </div>
           </div>
-          {/* 右侧列 */}
           <div>
-            <div className="h-[52px] flex items-end">
-              {game.current_phase === 'draft' && allDone() && (
-                <button onClick={enterMatch} className="w-full py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium">进入比赛阶段</button>
-              )}
-              {game.current_phase === 'match' && (
-                <button onClick={openRank} className="w-full py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium">提交比赛成绩</button>
-              )}
-            </div>
-            <div className="bg-white border border-gray-200 rounded-lg p-4 mt-4">
+            {game.current_phase === 'draft' && (
+              <button onClick={enterMatch} disabled={!done} className="w-full py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium mb-4">进入比赛阶段</button>
+            )}
+            {game.current_phase === 'match' && (
+              <button onClick={openRank} className="w-full py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium mb-4">提交比赛成绩</button>
+            )}
+            <div className="bg-white border border-gray-200 rounded-lg p-4">
               <h2 className="text-lg font-semibold text-gray-900 mb-3">玩家 ({players.length}/6)</h2>
               <div className="space-y-2">{players.map(p=>(<div key={p.id} className="flex justify-between items-center bg-gray-50 p-2 rounded"><span className="text-sm text-gray-900">{p.username}</span><span className="text-xs text-gray-500">💰{p.money} ⭐{p.score}</span></div>))}</div>
             </div>
