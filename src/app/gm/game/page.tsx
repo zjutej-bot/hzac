@@ -114,7 +114,9 @@ export default function GMGame() {
       <div className="max-w-4xl mx-auto px-8 py-6">
         <div className="grid grid-cols-3 gap-6">
           <div className="col-span-2 space-y-4">
-            <h2 className="text-lg font-semibold text-gray-900">{phase}</h2>
+            <div className="h-[52px] flex items-center">
+              <h2 className="text-lg font-semibold text-gray-900">{phase}</h2>
+            </div>
             {game.current_phase === 'match' && (
               <div className="bg-gray-50 rounded-lg p-4">
                 <p className="text-sm font-medium text-gray-700 mb-2">S{cr} 排名奖励明细</p>
@@ -133,10 +135,12 @@ export default function GMGame() {
             </div>
           </div>
           <div>
-            <button onClick={game.current_phase === 'draft' ? enterMatch : openRank} disabled={game.current_phase === 'draft' && !done} className="w-full py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium mb-4">
-              {game.current_phase === 'draft' ? '进入比赛阶段' : '提交比赛成绩'}
-            </button>
-            <div className="bg-white border border-gray-200 rounded-lg p-4">
+            <div className="h-[52px] flex items-center">
+              <button onClick={game.current_phase === 'draft' ? enterMatch : openRank} disabled={game.current_phase === 'draft' && !done} className="w-full py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium">
+                {game.current_phase === 'draft' ? '进入比赛阶段' : '提交比赛成绩'}
+              </button>
+            </div>
+            <div className="mt-4 bg-white border border-gray-200 rounded-lg p-4">
               <h2 className="text-lg font-semibold text-gray-900 mb-3">玩家 ({players.length}/6)</h2>
               <div className="space-y-2">{players.map(p=>(<div key={p.id} className="flex justify-between items-center bg-gray-50 p-2 rounded"><span className="text-sm text-gray-900">{p.username}</span><span className="text-xs text-gray-500">💰{p.money} ⭐{p.score}</span></div>))}</div>
             </div>
