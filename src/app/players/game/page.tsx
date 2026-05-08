@@ -10,6 +10,11 @@ const SEASON_COST_RANGE: { [round: number]: number[] } = {
   6: [3, 4, 5, 6, 7], 7: [4, 5, 6, 7],
 }
 
+const SEASON_COST_LABELS: { [round: number]: string } = {
+  1: '0~2费', 2: '0~3费', 3: '0~4费', 4: '0~7费',
+  5: '2~7费', 6: '3~7费', 7: '4~7费',
+}
+
 const MAX_ROSTER_SIZE = 11
 
 function getBonusScore(round: number, rank: number): number {
@@ -100,7 +105,7 @@ export default function PlayerGame() {
       await doDraft(userId, cr)
     }
 
-    // 加载所有玩家
+    // 加载所有玩家数据
     if (g.player_ids?.length > 0) {
       const { data: users } = await supabase.from('users').select('*').in('id', g.player_ids)
       setAllPlayers(users || [])
@@ -211,20 +216,15 @@ export default function PlayerGame() {
 
   return (
     <div className="min-h-screen bg-white">
-      {showInterestPopup && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50"><div className="bg-white p-6 rounded-lg shadow-lg max-w-sm w-full mx-4 text-center"><div className="text-4xl mb-4">💰</div><h3 className="text-lg font-semibold text-gray-900 mb-2">利息结算</h3>{interestAmount > 0 ? <p className="text-gray-600 mb-2">获得了 <span className="text-red-600 font-bold text-xl">{interestAmount}</span> 元利息</p> : <p className="text-gray-600 mb-2">余额不足5元，未获得利息</p>}{interestCapped && <p className="text-xs text-orange-500 mb-2">利息已达上限（最高5元），超出部分不计算</p>}<p className="text-xs text-gray-400 mb-4">（每剩余5元获得1元利息，每赛季上限5元）</p><button onClick={() => setShowInterestPopup(false)} className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">确定</button></div></div>
-      )}
-      {showResultPopup && resultData && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50"><div className="bg-white p-6 rounded-lg shadow-lg max-w-sm w-full mx-4 max-h-[80vh] overflow-y-auto"><h3 className="text-lg font-semibold text-gray-900 mb-1 text-center">比赛结果</h3><p className="text-xs text-gray-400 text-center mb-4">S{resultData.round} 赛季</p><div className="space-y-2 mb-4">{resultData.players.map((p: any, i: number) => (<div key={i} className="flex items-center justify-between bg-gray-50 p-2 rounded"><div className="flex items-center gap-2"><span className="font-bold text-red-600 w-6">#{p.rank}</span><span className="text-sm text-gray-900">{p.username}</span></div><span className="text-xs text-gray-500">{p.bonusMoney}元 {p.bonusScore}分</span></div>))}</div><button onClick={() => setShowResultPopup(false)} className="w-full py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">确定</button></div></div>
-      )}
+      {showInterestPopup && (<div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50"><div className="bg-white p-6 rounded-lg shadow-lg max-w-sm w-full mx-4 text-center"><div className="text-4xl mb-4">💰</div><h3 className="text-lg font-semibold text-gray-900 mb-2">利息结算</h3>{interestAmount > 0 ? <p className="text-gray-600 mb-2">获得了 <span className="text-red-600 font-bold text-xl">{interestAmount}</span> 元利息</p> : <p className="text-gray-600 mb-2">余额不足5元，未获得利息</p>}{interestCapped && <p className="text-xs text-orange-500 mb-2">利息已达上限（最高5元），超出部分不计算</p>}<p className="text-xs text-gray-400 mb-4">（每剩余5元获得1元利息，每赛季上限5元）</p><button onClick={() => setShowInterestPopup(false)} className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">确定</button></div></div>)}
+      {showResultPopup && resultData && (<div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50"><div className="bg-white p-6 rounded-lg shadow-lg max-w-sm w-full mx-4 max-h-[80vh] overflow-y-auto"><h3 className="text-lg font-semibold text-gray-900 mb-1 text-center">比赛结果</h3><p className="text-xs text-gray-400 text-center mb-4">S{resultData.round} 赛季</p><div className="space-y-2 mb-4">{resultData.players.map((p: any, i: number) => (<div key={i} className="flex items-center justify-between bg-gray-50 p-2 rounded"><div className="flex items-center gap-2"><span className="font-bold text-red-600 w-6">#{p.rank}</span><span className="text-sm text-gray-900">{p.username}</span></div><span className="text-xs text-gray-500">{p.bonusMoney}元 {p.bonusScore}分</span></div>))}</div><button onClick={() => setShowResultPopup(false)} className="w-full py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">确定</button></div></div>)}
       <div className="border-b border-gray-200 bg-red-50"><div className="max-w-4xl mx-auto px-8 py-4 flex justify-between items-center"><div><h1 className="text-lg font-bold text-red-700">游戏局</h1><p className="text-sm text-gray-500">第 {game.current_round}/7 赛季 · {phase}</p></div><div className="flex items-center gap-4"><div className="text-right"><p className="text-sm text-gray-500">{userProfile.username}</p><p className="text-lg font-bold text-red-600">💰{myData.money}元 ⭐{myData.score}分</p></div><button onClick={() => router.push('/players/dashboard')} className="px-3 py-1.5 border border-gray-300 text-gray-600 rounded hover:bg-gray-50 text-sm">退出</button></div></div></div>
       <div className="max-w-4xl mx-auto px-8 py-6 grid grid-cols-3 gap-6">
-        {/* 左侧：阵容 + 奖励说明 + 选秀/队伍操作 */}
+        {/* 左侧：阵容 + 操作 */}
         <div className="col-span-2 space-y-4">
           {message && <div className="p-2 rounded text-sm bg-red-50 border border-red-200 text-red-700">{message}<button onClick={() => setMessage('')} className="ml-2 underline">关闭</button></div>}
           {showFinalConfirm && (<div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50"><div className="bg-white p-6 rounded-lg shadow-lg max-w-sm w-full mx-4"><h3 className="text-lg font-semibold text-gray-900 mb-2">确认大名单</h3><p className="text-gray-600 mb-1">确定提交大名单吗？（{finalSelected.size}人）</p><p className="text-gray-500 text-sm mb-4">确定后本季将无法再选秀</p><div className="flex gap-2 justify-end"><button onClick={() => setShowFinalConfirm(false)} className="px-4 py-2 border border-gray-300 rounded text-gray-600">取消</button><button onClick={executeFinalRoster} className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">确认</button></div></div></div>)}
 
-          {/* 比赛阶段：奖励说明在阵容上方 */}
           {game.current_phase === 'match' && (
             <div className="bg-gray-50 rounded-lg p-4">
               <p className="text-sm font-medium text-gray-700 mb-2">S{game.current_round} 排名奖励明细</p>
@@ -234,7 +234,7 @@ export default function PlayerGame() {
             </div>
           )}
 
-          {/* 所有玩家阵容 */}
+          {/* GM端同款全玩家阵容 */}
           <div className="space-y-3">
             {allPlayers.map((p: any) => {
               const pool = allPools[p.id] || []
@@ -261,7 +261,7 @@ export default function PlayerGame() {
             })}
           </div>
 
-          {/* 选秀阶段自己的操作 */}
+          {/* 自己的选秀操作 */}
           {game.current_phase === 'draft' && !isFinal && (
             <div className="space-y-4">
               <div className="bg-white border border-gray-200 rounded-lg p-4">
@@ -281,6 +281,8 @@ export default function PlayerGame() {
               </div>
               <div className="bg-white border border-gray-200 rounded-lg p-4">
                 <h2 className="text-lg font-semibold text-gray-900 mb-3">选秀</h2>
+                <p className="text-gray-500 text-xs mb-3">S{game.current_round} 可选：{SEASON_COST_LABELS[game.current_round]}（{SEASON_COST_RANGE[game.current_round]?.join('、')}费）</p>
+                <details className="text-xs text-gray-400 mb-3"><summary className="cursor-pointer hover:text-gray-500">查看所有赛季费用</summary><div className="mt-1 space-y-0.5 bg-gray-50 p-2 rounded">{[1,2,3,4,5,6,7].map(s => (<div key={s} className={s === game.current_round ? 'text-red-600 font-medium' : ''}>S{s}：{SEASON_COST_LABELS[s]}（{SEASON_COST_RANGE[s]?.join('、')}费）</div>))}</div></details>
                 <div className="flex justify-end mb-3"><button onClick={manualRefresh} disabled={(myData?.money||0) < 1} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 text-sm font-medium">刷新 (1元)</button></div>
                 {availablePlayers.length > 0 ? (
                   <div className="space-y-2 mb-4">
