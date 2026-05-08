@@ -107,7 +107,7 @@ export default function PlayerGame() {
 
     // 加载所有玩家
     if (g.player_ids?.length > 0) {
-      const { data: users } = await supabase.from('users').select('*').in('id', g.player_ids)
+      const { data: users } = await supabase.from('users').select('*').in('id', g.player_ids).order('id')
       setAllPlayers(users || [])
       const pools: { [uid: string]: any[] } = {}
       for (const p of users || []) {
