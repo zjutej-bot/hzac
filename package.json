@@ -1,12 +1,13 @@
 {
-  "name": "hzac",
+  "name": "gm-game",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "export": "next build"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.10",
