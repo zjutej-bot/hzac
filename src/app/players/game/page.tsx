@@ -65,12 +65,13 @@ export default function PlayerGame() {
     const { data: games } = await supabase.from('games').select('match_result, player_ids').eq('status', 'playing').limit(1)
     const mr = games?.[0]?.match_result
     if (!mr || Object.keys(mr).length === 0) return
-    const bonusM: any = { 1: 8, 2: 7, 3: 7, 4: 6, 5: 6, 6: 5 }
+    // 新奖金：第1名7元，第2名6元，第3名6元，第4名5元，第5名5元，第6名4元
+    const bonusM: any = { 1: 7, 2: 6, 3: 6, 4: 5, 5: 5, 6: 4 }
     const { data: users } = await supabase.from('users').select('*').in('id', games[0].player_ids || [])
     const ranks = mr as { [uid: string]: number }
     const results = (users || []).map((p: any) => ({
       username: p.username, rank: ranks[p.id] || 6,
-      bonusMoney: bonusM[ranks[p.id]] || 5,
+      bonusMoney: bonusM[ranks[p.id]] || 4,
       bonusScore: getBonusScore(currentRound - 1, ranks[p.id] || 6),
     })).sort((a, b) => a.rank - b.rank)
     setResultData({ round: currentRound - 1, players: results })
@@ -168,6 +169,7 @@ export default function PlayerGame() {
     setMyDraftedPlayers(drafted || [])
   }
 
+  // 遣散规则：返还 max(0, cost-1)，即 0-1费球员不返还金额
   const releasePlayer = async (id: string, cost: number) => {
     const refund = Math.max(0, cost - 1)
     await supabase.from('players_pool').update({ status: 'available', owner_id: null }).eq('id', id)
@@ -230,7 +232,7 @@ export default function PlayerGame() {
             <div className="bg-gray-50 rounded-lg p-4">
               <p className="text-sm font-medium text-gray-700 mb-2">S{game.current_round} 排名奖励明细</p>
               <div className="grid grid-cols-7 gap-1 text-xs text-gray-600 mb-1"><span>排名</span><span className="text-center font-medium">#1</span><span className="text-center font-medium">#2</span><span className="text-center font-medium">#3</span><span className="text-center font-medium">#4</span><span className="text-center font-medium">#5</span><span className="text-center font-medium">#6</span></div>
-              <div className="grid grid-cols-7 gap-1 text-xs text-gray-600 mb-1"><span>奖金</span><span className="text-center">8元</span><span className="text-center">7元</span><span className="text-center">7元</span><span className="text-center">6元</span><span className="text-center">6元</span><span className="text-center">5元</span></div>
+              <div className="grid grid-cols-7 gap-1 text-xs text-gray-600 mb-1"><span>奖金</span><span className="text-center">7元</span><span className="text-center">6元</span><span className="text-center">6元</span><span className="text-center">5元</span><span className="text-center">5元</span><span className="text-center">4元</span></div>
               <div className="grid grid-cols-7 gap-1 text-xs text-gray-600"><span>分数</span>{[1,2,3,4,5,6].map(r=>(<span key={r} className="text-center">{getBonusScore(game.current_round, r)}分</span>))}</div>
             </div>
           )}
