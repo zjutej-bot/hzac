@@ -72,11 +72,12 @@ export default function GMGame() {
   }
 
   const submit = async () => {
-    const moneyMap: any = { 1: 8, 2: 7, 3: 7, 4: 6, 5: 6, 6: 5 }
+    // 新奖金：第1名7元，第2名6元，第3名6元，第4名5元，第5名5元，第6名4元
+    const moneyMap: any = { 1: 7, 2: 6, 3: 6, 4: 5, 5: 5, 6: 4 }
     const cr = game.current_round
     for (const [uid, rank] of Object.entries(ranks)) {
-      const bm = moneyMap[rank] || 5
-      const bs = getBonusScore(cr, rank)
+      const bm = moneyMap[rank] || 4
+      const bs = getBonusScore(cr, rank as number)
       const { data: u } = await supabase.from('users').select('money, score').eq('id', uid).single()
       if (u) await supabase.from('users').update({ money: (u.money||0) + bm, score: (u.score||0) + bs }).eq('id', uid)
     }
@@ -121,7 +122,7 @@ export default function GMGame() {
               <div className="bg-gray-50 rounded-lg p-4">
                 <p className="text-sm font-medium text-gray-700 mb-2">S{cr} 排名奖励明细</p>
                 <div className="grid grid-cols-7 gap-1 text-xs text-gray-600 mb-1"><span>排名</span><span className="text-center font-medium">#1</span><span className="text-center font-medium">#2</span><span className="text-center font-medium">#3</span><span className="text-center font-medium">#4</span><span className="text-center font-medium">#5</span><span className="text-center font-medium">#6</span></div>
-                <div className="grid grid-cols-7 gap-1 text-xs text-gray-600 mb-1"><span>奖金</span><span className="text-center">8元</span><span className="text-center">7元</span><span className="text-center">7元</span><span className="text-center">6元</span><span className="text-center">6元</span><span className="text-center">5元</span></div>
+                <div className="grid grid-cols-7 gap-1 text-xs text-gray-600 mb-1"><span>奖金</span><span className="text-center">7元</span><span className="text-center">6元</span><span className="text-center">6元</span><span className="text-center">5元</span><span className="text-center">5元</span><span className="text-center">4元</span></div>
                 <div className="grid grid-cols-7 gap-1 text-xs text-gray-600"><span>分数</span>{[1,2,3,4,5,6].map(r=>(<span key={r} className="text-center">{getBonusScore(cr, r)}分</span>))}</div>
               </div>
             )}
@@ -148,7 +149,7 @@ export default function GMGame() {
         </div>
       </div>
       {showRank && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50"><div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full mx-4"><h3 className="text-lg font-semibold text-gray-900 mb-4">设置排名</h3><div className="space-y-2 mb-4">{[...players].sort((a,b)=>(ranks[a.id]||99)-(ranks[b.id]||99)).map(p => { const rank = ranks[p.id]; const bm: any = {1:8,2:7,3:7,4:6,5:6,6:5}; return (<div key={p.id} className="flex items-center gap-3 bg-gray-50 p-2 rounded"><span className="text-lg font-bold text-red-600 w-8 text-center">#{rank}</span><span className="flex-1 text-sm text-gray-900">{p.username}</span><span className="text-xs text-gray-500">+{bm[rank]||5}元 +{getBonusScore(cr, rank)}分</span><div className="flex flex-col gap-0.5"><button onClick={() => { const c=ranks[p.id]; if(c<=1)return; const n={...ranks}; const s=Object.keys(n).find(k=>n[k]===c-1); if(s){n[p.id]=c-1;n[s]=c}; setRanks(n) }} disabled={ranks[p.id]<=1} className="text-xs px-1.5 py-0.5 bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-30">▲</button><button onClick={() => { const c=ranks[p.id]; if(c>=players.length)return; const n={...ranks}; const s=Object.keys(n).find(k=>n[k]===c+1); if(s){n[p.id]=c+1;n[s]=c}; setRanks(n) }} disabled={ranks[p.id]>=players.length} className="text-xs px-1.5 py-0.5 bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-30">▼</button></div></div>)})}</div><div className="flex gap-2 justify-end"><button onClick={() => setShowRank(false)} className="px-4 py-2 border border-gray-300 rounded text-gray-600">取消</button><button onClick={submit} className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">确认提交</button></div></div></div>
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50"><div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full mx-4"><h3 className="text-lg font-semibold text-gray-900 mb-4">设置排名</h3><div className="space-y-2 mb-4">{[...players].sort((a,b)=>(ranks[a.id]||99)-(ranks[b.id]||99)).map(p => { const rank = ranks[p.id]; const bm: any = {1:7,2:6,3:6,4:5,5:5,6:4}; return (<div key={p.id} className="flex items-center gap-3 bg-gray-50 p-2 rounded"><span className="text-lg font-bold text-red-600 w-8 text-center">#{rank}</span><span className="flex-1 text-sm text-gray-900">{p.username}</span><span className="text-xs text-gray-500">+{bm[rank]||4}元 +{getBonusScore(cr, rank)}分</span><div className="flex flex-col gap-0.5"><button onClick={() => { const c=ranks[p.id]; if(c<=1)return; const n={...ranks}; const s=Object.keys(n).find(k=>n[k]===c-1); if(s){n[p.id]=c-1;n[s]=c}; setRanks(n) }} disabled={ranks[p.id]<=1} className="text-xs px-1.5 py-0.5 bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-30">▲</button><button onClick={() => { const c=ranks[p.id]; if(c>=players.length)return; const n={...ranks}; const s=Object.keys(n).find(k=>n[k]===c+1); if(s){n[p.id]=c+1;n[s]=c}; setRanks(n) }} disabled={ranks[p.id]>=players.length} className="text-xs px-1.5 py-0.5 bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-30">▼</button></div></div>)})}</div><div className="flex gap-2 justify-end"><button onClick={() => setShowRank(false)} className="px-4 py-2 border border-gray-300 rounded text-gray-600">取消</button><button onClick={submit} className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">确认提交</button></div></div></div>
       )}
     </div>
   )
