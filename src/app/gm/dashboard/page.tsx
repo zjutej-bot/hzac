@@ -55,9 +55,10 @@ export default function GMDashboard() {
     logout()
   }
 
+  // 开局资金改为 7 元
   const startGame = async () => {
     if (!game || (game.participants || 0) < 1) return
-    for (const p of gamePlayers) await supabase.from('users').update({ money: 8 }).eq('id', p.id)  // 改为 8 元
+    for (const p of gamePlayers) await supabase.from('users').update({ money: 7 }).eq('id', p.id)
     await supabase.from('games').update({ status: 'playing', current_round: 1, current_phase: 'draft' }).eq('id', game.id)
     fetchData()
   }
