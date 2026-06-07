@@ -4,28 +4,38 @@ import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 
+// S1-S5 可选费用范围
 const SEASON_COST_RANGE: { [round: number]: number[] } = {
-  1: [0, 1, 2], 2: [0, 1, 2, 3], 3: [0, 1, 2, 3, 4],
-  4: [0, 1, 2, 3, 4, 5, 6, 7], 5: [2, 3, 4, 5, 6, 7],
-  6: [3, 4, 5, 6, 7],
+  1: [0, 1, 2],
+  2: [0, 1, 2, 3],
+  3: [0, 1, 2, 3, 4, 5, 6, 7],
+  4: [2, 3, 4, 5, 6, 7],
+  5: [3, 4, 5, 6, 7],
 }
 
 const SEASON_COST_LABELS: { [round: number]: string } = {
-  1: '0~2费', 2: '0~3费', 3: '0~4费', 4: '0~7费',
-  5: '2~7费', 6: '3~7费',
+  1: '0~2费',
+  2: '0~3费',
+  3: '0~7费',
+  4: '2~7费',
+  5: '3~7费',
+}
+
+// 赛季分数配置 (S1-S5)
+const SCORE_MAP: { [round: number]: { [rank: number]: number } } = {
+  1: { 1: 10, 2: 8, 3: 6, 4: 4, 5: 2, 6: 0 },
+  2: { 1: 15, 2: 12, 3: 8, 4: 6, 5: 3, 6: 0 },
+  3: { 1: 20, 2: 16, 3: 12, 4: 8, 5: 4, 6: 0 },
+  4: { 1: 25, 2: 20, 3: 15, 4: 10, 5: 5, 6: 0 },
+  5: { 1: 30, 2: 24, 3: 18, 4: 12, 5: 6, 6: 0 },
+}
+
+function getBonusScore(round: number, rank: number): number {
+  return SCORE_MAP[round]?.[rank] || 0
 }
 
 const MAX_ROSTER_SIZE = 11
-const DRAFT_POOL_SIZE = 7  // 选秀池从 5 人改为 7 人
-
-// S6 分数调整：20/16/12/8/4/0
-function getBonusScore(round: number, rank: number): number {
-  if (round <= 2) return { 1: 5, 2: 4, 3: 3, 4: 2, 5: 1, 6: 0 }[rank] || 0
-  if (round <= 4) return { 1: 10, 2: 8, 3: 6, 4: 4, 5: 2, 6: 0 }[rank] || 0
-  if (round <= 5) return { 1: 15, 2: 12, 3: 9, 4: 6, 5: 3, 6: 0 }[rank] || 0
-  // S6 分数：20/16/12/8/4/0
-  return { 1: 20, 2: 16, 3: 12, 4: 8, 5: 4, 6: 0 }[rank] || 0
-}
+const DRAFT_POOL_SIZE = 7  // 选秀池 7 人
 
 export default function PlayerGame() {
   const router = useRouter()
@@ -68,8 +78,8 @@ export default function PlayerGame() {
     const { data: games } = await supabase.from('games').select('match_result, player_ids').eq('status', 'playing').limit(1)
     const mr = games?.[0]?.match_result
     if (!mr || Object.keys(mr).length === 0) return
-    // 固定奖金 7 元
-    const fixedBonus = 7
+    // 固定奖金 9 元
+    const fixedBonus = 9
     const { data: users } = await supabase.from('users').select('*').in('id', games[0].player_ids || [])
     const ranks = mr as { [uid: string]: number }
     const results = (users || []).map((p: any) => ({
@@ -86,7 +96,6 @@ export default function PlayerGame() {
     const costs = SEASON_COST_RANGE[round] || [0, 1, 2, 3, 4, 5, 6, 7]
     const { data: pool } = await supabase.from('players_pool').select('*').eq('status', 'available').is('owner_id', null).in('cost', costs)
     if (pool && pool.length > 0) {
-      // 选秀池从 5 人改为 7 人
       const pick = [...pool].sort(() => Math.random() - 0.5).slice(0, DRAFT_POOL_SIZE)
       for (const p of pick) await supabase.from('players_pool').update({ status: 'in_pool', owner_id: userId }).eq('id', p.id)
     }
@@ -141,7 +150,6 @@ export default function PlayerGame() {
     const { data: pool } = await supabase.from('players_pool').select('*').eq('status', 'available').is('owner_id', null).in('cost', costs)
     if (pool && pool.length > 0) {
       const shuffled = [...pool].sort(() => Math.random() - 0.5)
-      // 刷新时也从 5 人改为 7 人
       const selected = shuffled.slice(0, DRAFT_POOL_SIZE)
       for (const p of selected) await supabase.from('players_pool').update({ status: 'in_pool', owner_id: u.id }).eq('id', p.id)
       setAvailablePlayers(selected)
@@ -154,9 +162,34 @@ export default function PlayerGame() {
   }
 
   const manualRefresh = async () => {
-    if ((myData?.money || 0) < 1) { setMessage('余额不足'); return }
-    await supabase.from('users').update({ money: (myData.money || 0) - 1 }).eq('id', userProfile.id)
-    await refreshPlayers()
+    const currentMoney = myData?.money || 0
+    if (currentMoney < 1) { setMessage('余额不足'); return }
+    
+    // 先扣款
+    const newMoney = currentMoney - 1
+    await supabase.from('users').update({ money: newMoney }).eq('id', userProfile.id)
+    
+    // 更新本地状态
+    setMyData({ ...myData, money: newMoney })
+    localStorage.setItem('currentUser', JSON.stringify({ ...userProfile, money: newMoney }))
+    
+    // 刷新球员池
+    const u = userProfile
+    const cr = game?.current_round || 1
+    await supabase.from('players_pool').update({ status: 'available', owner_id: null }).eq('owner_id', u.id).eq('status', 'in_pool')
+    const costs = SEASON_COST_RANGE[cr] || [0, 1, 2, 3, 4, 5, 6, 7]
+    const { data: pool } = await supabase.from('players_pool').select('*').eq('status', 'available').is('owner_id', null).in('cost', costs)
+    if (pool && pool.length > 0) {
+      const shuffled = [...pool].sort(() => Math.random() - 0.5)
+      const selected = shuffled.slice(0, DRAFT_POOL_SIZE)
+      for (const p of selected) await supabase.from('players_pool').update({ status: 'in_pool', owner_id: u.id }).eq('id', p.id)
+      setAvailablePlayers(selected)
+    } else {
+      setAvailablePlayers([])
+    }
+    setSelectedPlayers(new Set())
+    const { data: drafted } = await supabase.from('players_pool').select('*').eq('owner_id', u.id).in('status', ['drafted', 'final']).order('sort_order')
+    setMyDraftedPlayers(drafted || [])
   }
 
   const togglePlayer = (id: string) => setSelectedPlayers(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n })
@@ -167,7 +200,10 @@ export default function PlayerGame() {
     if (totalCost > (myData?.money || 0)) { setMessage('余额不足'); return }
     const u = JSON.parse(localStorage.getItem('currentUser') || '{}')
     for (const pid of Array.from(selectedPlayers)) await supabase.from('players_pool').update({ status: 'drafted' }).eq('id', pid)
-    await supabase.from('users').update({ money: (myData.money || 0) - totalCost }).eq('id', u.id)
+    const newMoney = (myData.money || 0) - totalCost
+    await supabase.from('users').update({ money: newMoney }).eq('id', u.id)
+    setMyData({ ...myData, money: newMoney })
+    localStorage.setItem('currentUser', JSON.stringify({ ...u, money: newMoney }))
     setAvailablePlayers(prev => prev.filter(p => !Array.from(selectedPlayers).includes(p.id)))
     setSelectedPlayers(new Set())
     const { data: drafted } = await supabase.from('players_pool').select('*').eq('owner_id', u.id).in('status', ['drafted', 'final']).order('sort_order')
@@ -177,8 +213,11 @@ export default function PlayerGame() {
   // 遣散规则：返还 max(0, cost-1)
   const releasePlayer = async (id: string, cost: number) => {
     const refund = Math.max(0, cost - 1)
+    const newMoney = (myData.money || 0) + refund
     await supabase.from('players_pool').update({ status: 'available', owner_id: null }).eq('id', id)
-    await supabase.from('users').update({ money: (myData.money || 0) + refund }).eq('id', userProfile.id)
+    await supabase.from('users').update({ money: newMoney }).eq('id', userProfile.id)
+    setMyData({ ...myData, money: newMoney })
+    localStorage.setItem('currentUser', JSON.stringify({ ...userProfile, money: newMoney }))
     setFinalSelected(p => { const n = new Set(p); n.delete(id); return n })
     setShowReleaseConfirm(null)
     const u = JSON.parse(localStorage.getItem('currentUser') || '{}')
@@ -205,7 +244,12 @@ export default function PlayerGame() {
     const rawInterest = Math.floor((myData?.money || 0) / 5)
     const interest = Math.min(rawInterest, 5)
     const capped = rawInterest > 5
-    if (interest > 0) await supabase.from('users').update({ money: (myData.money || 0) + interest }).eq('id', u.id)
+    if (interest > 0) {
+      const newMoney = (myData.money || 0) + interest
+      await supabase.from('users').update({ money: newMoney }).eq('id', u.id)
+      setMyData({ ...myData, money: newMoney })
+      localStorage.setItem('currentUser', JSON.stringify({ ...u, money: newMoney }))
+    }
     setInterestAmount(interest)
     setInterestCapped(capped)
     setShowInterestPopup(true)
@@ -220,7 +264,7 @@ export default function PlayerGame() {
 
   const isFinal = myData?.if_final
   const phase = game.current_phase === 'draft' ? '选秀阶段' : '比赛阶段'
-  const maxRounds = 6
+  const maxRounds = 5
 
   return (
     <div className="min-h-screen bg-white">
@@ -238,7 +282,7 @@ export default function PlayerGame() {
             <div className="bg-gray-50 rounded-lg p-4">
               <p className="text-sm font-medium text-gray-700 mb-2">S{game.current_round} 奖励明细</p>
               <div className="grid grid-cols-7 gap-1 text-xs text-gray-600 mb-1"><span>排名</span><span className="text-center font-medium">#1</span><span className="text-center font-medium">#2</span><span className="text-center font-medium">#3</span><span className="text-center font-medium">#4</span><span className="text-center font-medium">#5</span><span className="text-center font-medium">#6</span></div>
-              <div className="grid grid-cols-7 gap-1 text-xs text-gray-600 mb-1"><span>奖金</span><span className="text-center">7元</span><span className="text-center">7元</span><span className="text-center">7元</span><span className="text-center">7元</span><span className="text-center">7元</span><span className="text-center">7元</span></div>
+              <div className="grid grid-cols-7 gap-1 text-xs text-gray-600 mb-1"><span>奖金</span><span className="text-center">9元</span><span className="text-center">9元</span><span className="text-center">9元</span><span className="text-center">9元</span><span className="text-center">9元</span><span className="text-center">9元</span></div>
               <div className="grid grid-cols-7 gap-1 text-xs text-gray-600"><span>分数</span>{[1, 2, 3, 4, 5, 6].map(r => (<span key={r} className="text-center">{getBonusScore(game.current_round, r)}分</span>))}</div>
             </div>
           )}
@@ -293,7 +337,7 @@ export default function PlayerGame() {
               <div className="bg-white border border-gray-200 rounded-lg p-4">
                 <h2 className="text-lg font-semibold text-gray-900 mb-3">选秀</h2>
                 <p className="text-gray-500 text-xs mb-3">S{game.current_round} 可选：{SEASON_COST_LABELS[game.current_round]}（{SEASON_COST_RANGE[game.current_round]?.join('、')}费）· 每次刷新 {DRAFT_POOL_SIZE} 人</p>
-                <details className="text-xs text-gray-400 mb-3"><summary className="cursor-pointer hover:text-gray-500">查看所有赛季费用</summary><div className="mt-1 space-y-0.5 bg-gray-50 p-2 rounded">{[1, 2, 3, 4, 5, 6].map(s => (<div key={s} className={s === game.current_round ? 'text-red-600 font-medium' : ''}>S{s}：{SEASON_COST_LABELS[s]}（{SEASON_COST_RANGE[s]?.join('、')}费）</div>))}</div></details>
+                <details className="text-xs text-gray-400 mb-3"><summary className="cursor-pointer hover:text-gray-500">查看所有赛季费用</summary><div className="mt-1 space-y-0.5 bg-gray-50 p-2 rounded">{[1, 2, 3, 4, 5].map(s => (<div key={s} className={s === game.current_round ? 'text-red-600 font-medium' : ''}>S{s}：{SEASON_COST_LABELS[s]}（{SEASON_COST_RANGE[s]?.join('、')}费）</div>))}</div></details>
                 <div className="flex justify-end mb-3"><button onClick={manualRefresh} disabled={(myData?.money || 0) < 1} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 text-sm font-medium">刷新 (1元)</button></div>
                 {availablePlayers.length > 0 ? (
                   <div className="space-y-2 mb-4">
